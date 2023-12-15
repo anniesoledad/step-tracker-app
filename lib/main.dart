@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:pedometer/pedometer.dart';
+import 'package:step_tracker_app/daily_record.dart';
+import 'package:step_tracker_app/db.dart';
+import 'package:intl/intl.dart';
 
-void main() => runApp(const StepTrackerApp());
+final db = StepTrackerDatabase();
+
+Future<void> main() async {
+  await db.openDb();
+  // await db.insertRecord(DailyRecord(id: 3, date: DateTime.daysPerWeek, step: 2));
+  runApp(const StepTrackerApp());
+}
 
 class StepTrackerApp extends StatefulWidget {
   const StepTrackerApp({super.key});
@@ -13,8 +22,10 @@ class StepTrackerApp extends StatefulWidget {
 class _StepTrackerAppState extends State<StepTrackerApp> {
   late Stream<PedestrianStatus> _pedestrianStatusStream;
   late Stream<StepCount> _stepCountStream;
+
   String _status = '';
   String _steps = '';
+  final DateTime _date = DateTime.now();
 
   @override
   void initState() {
@@ -23,6 +34,8 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
     initPlatformState();
   }
 
+  void onInitialize() {}
+
   void initPlatformState() {
     _pedestrianStatusStream = Pedometer.pedestrianStatusStream;
     _pedestrianStatusStream
@@ -30,7 +43,7 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
         .onError(onPedestrianStatusError);
 
     _stepCountStream = Pedometer.stepCountStream;
-    _stepCountStream.listen(onStepCount).onError(onStepCountError);
+    _stepCountStream.listen(onStepCountChanged).onError(onStepCountError);
   }
 
   void onPedestrianStatusChanged(PedestrianStatus event) {
@@ -40,8 +53,13 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
     });
   }
 
-  void onStepCount(StepCount event) {
+  void onStepCountChanged(StepCount event) async {
     print(event);
+
+    DailyRecord record = DailyRecord(
+        id: 1, date: event.timeStamp.microsecondsSinceEpoch, step: event.steps);
+    await db.insertRecord(record);
+
     setState(() {
       _steps = event.steps.toString();
     });
@@ -64,6 +82,8 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
 
   @override
   Widget build(BuildContext context) {
+    String formattedDate = DateFormat.yMMMMd().format(_date);
+
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
@@ -71,6 +91,21 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
         ),
         body: Column(
           children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Text(
+                  'Date:',
+                  style: TextStyle(fontSize: 20.0),
+                ),
+                const SizedBox(
+                  width: 10.0,
+                ),
+                Text(
+                  formattedDate,
+                  style: const TextStyle(fontSize: 20.0),
+                )
+              ],
+            ),
             Row(
               children: <Widget>[
                 const Text(
@@ -86,7 +121,7 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
             Row(
               children: <Widget>[
                 const Text(
-                  'Total Steps Taken:',
+                  'Steps Taken:',
                   style: TextStyle(fontSize: 20.0),
                 ),
                 const SizedBox(
