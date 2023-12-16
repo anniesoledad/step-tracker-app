@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:pedometer/pedometer.dart';
-import 'package:step_tracker_app/daily_record.dart';
-import 'package:step_tracker_app/db.dart';
+import 'package:step_tracker_app/step_count_log.dart';
+import 'package:step_tracker_app/db_helper.dart';
 import 'package:intl/intl.dart';
 
-final db = StepTrackerDatabase();
-
 Future<void> main() async {
-  await db.openDb();
-  // await db.insertRecord(DailyRecord(id: 3, date: DateTime.daysPerWeek, step: 2));
   runApp(const StepTrackerApp());
 }
 
@@ -25,7 +21,8 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
 
   String _status = '';
   String _steps = '';
-  final DateTime _date = DateTime.now();
+  DateTime _date = DateTime.now();
+  bool _initializing = false;
 
   @override
   void initState() {
@@ -34,9 +31,9 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
     initPlatformState();
   }
 
-  void onInitialize() {}
-
   void initPlatformState() {
+    _initializing = true;
+
     _pedestrianStatusStream = Pedometer.pedestrianStatusStream;
     _pedestrianStatusStream
         .listen(onPedestrianStatusChanged)
@@ -44,6 +41,13 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
 
     _stepCountStream = Pedometer.stepCountStream;
     _stepCountStream.listen(onStepCountChanged).onError(onStepCountError);
+
+    _initializing = false;
+  }
+
+  Future<void> getRecords() async {
+    var list = await DbHelper.instance.retrieveLogs();
+    print(list);
   }
 
   void onPedestrianStatusChanged(PedestrianStatus event) {
@@ -54,15 +58,29 @@ class _StepTrackerAppState extends State<StepTrackerApp> {
   }
 
   void onStepCountChanged(StepCount event) async {
-    print(event);
+    print("changed:");
+    print(event.steps);
 
-    DailyRecord record = DailyRecord(
-        id: 1, date: event.timeStamp.microsecondsSinceEpoch, step: event.steps);
-    await db.insertRecord(record);
+    // if there has already recorded step count within the day, add changes to step count
+    // else reset step count to zero
+
+    /*  if (_initializing) {
+      // set state of steps taken
+    }*/
+
+    /*await saveLog(event);
+    getRecords();
 
     setState(() {
       _steps = event.steps.toString();
-    });
+    });*/
+  }
+
+  Future<void> saveLog(StepCount event) async {
+    StepCountLog log = StepCountLog(
+        date: event.timeStamp.microsecondsSinceEpoch, step: event.steps);
+
+    await DbHelper.instance.insertLog(log);
   }
 
   void onPedestrianStatusError(error) {
